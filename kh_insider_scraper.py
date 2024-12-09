@@ -1,3 +1,4 @@
+import sys
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -27,17 +28,6 @@ options.binary_location = brave_binary_path
 service = Service(driver_path)
 driver = webdriver.Chrome(service=service, options=options)
 
-def dismiss_overlays():
-    """Dismiss cookie banners or other overlays."""
-    try:
-        cookie_banner = driver.find_element(By.CSS_SELECTOR, "div.cookieinfo")
-        if cookie_banner.is_displayed():
-            driver.execute_script("arguments[0].style.visibility = 'hidden';", cookie_banner)
-            print("Cookie banner dismissed.")
-    except Exception as e:
-        print("No overlays to dismiss:", e)
-
-
 def download_mp3(url, filename):
     """Download an MP3 file from the given URL and decode the filename."""
     try:
@@ -54,6 +44,17 @@ def download_mp3(url, filename):
     except Exception as e:
         print(f"Failed to download {decoded_filename}: {e}")
 
+def dismiss_overlays():
+    """Dismiss cookie banners or other overlays."""
+    try:
+        cookie_banner = driver.find_element(By.CSS_SELECTOR, "div.cookieinfo")
+        if cookie_banner.is_displayed():
+            driver.execute_script("arguments[0].style.visibility = 'hidden';", cookie_banner)
+            print("Cookie banner dismissed.")
+    except Exception:
+        # No overlay to dismiss
+        pass
+
 def safe_click(element, retries=3):
     """Click an element with retry logic."""
     for attempt in range(retries):
@@ -65,10 +66,9 @@ def safe_click(element, retries=3):
             time.sleep(1)
     raise Exception("Failed to click the element after multiple attempts.")
 
-
-def download_album(album_url):
+def download_album(album_url, delay):
     driver.get(album_url)
-    time.sleep(3)  # Allow time for the album page to load
+    time.sleep(delay)  # Allow time for the album page to load
     
     # Locate all track links in the table
     track_links = driver.find_elements(By.CSS_SELECTOR, "td.playlistDownloadSong a")
@@ -86,7 +86,7 @@ def download_album(album_url):
             
             # Click the link safely
             safe_click(link)
-            time.sleep(4)  # Allow the track page to load
+            time.sleep(delay)  # Allow the track page to load
             
             # Locate the download link by finding the parent <a> of the <span> with class "songDownloadLink"
             download_link = driver.find_element(By.CSS_SELECTOR, "a[href] span.songDownloadLink").find_element(By.XPATH, "..")
@@ -98,17 +98,23 @@ def download_album(album_url):
             # Download the MP3 directly
             download_mp3(mp3_url, filename)
             
-            time.sleep(4)  # Wait a bit before processing the next track
+            time.sleep(delay)  # Wait before processing the next track
             driver.back()  # Return to the album page
         except Exception as e:
             print(f"Error processing track {index + 1}: {e}")
             driver.back()  # Ensure the script goes back even if an error occurs
             continue
 
+# Main entry point
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python kh_insider_scraper.py <album_url> [delay_in_seconds]")
+        sys.exit(1)
+    
+    album_url = sys.argv[1]
+    delay = float(sys.argv[2]) if len(sys.argv) > 4 else 4.0  # Default delay is 4 seconds
 
-
-# Replace with the URL of the album page you want to process
-album_page_url = "https://downloads.khinsider.com/game-soundtracks/album/animal-crossing-new-horizons-2020-switch-gamerip"
-download_album(album_page_url)
-
-driver.quit()
+    try:
+        download_album(album_url, delay)
+    finally:
+        driver.quit()

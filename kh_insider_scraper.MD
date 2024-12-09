@@ -63,7 +63,7 @@ BRAVE_BINARY_PATH=C:/Program Files/BraveSoftware/Brave-Browser/Application/brave
 
 2. **Run the Script**:
 ```bash
-   python kh_insider_scraper.py
+   python kh_insider_scraper.py <album_url> [delay_in_seconds]
 ```
 
 3. **Tracks Downloaded**:
