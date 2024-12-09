@@ -3,14 +3,21 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from urllib.parse import unquote
+from dotenv import load_dotenv
+import os
 import requests
 import time
-import os
 
-# Paths
-driver_path = "C:/Users/Geoff/workspace/geoffgodwin/SandboxScripts/chromedriver-win64/chromedriver.exe"
-download_folder = "C:/Users/Geoff/workspace/geoffgodwin/SandboxScripts/downloaded/"
-brave_binary_path = "C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe"
+# Load environment variables from .env file
+load_dotenv()
+
+# Get paths from environment variables
+driver_path = os.getenv("DRIVER_PATH")
+download_folder = os.getenv("DOWNLOAD_FOLDER")
+brave_binary_path = os.getenv("BRAVE_BINARY_PATH")
+
+# Ensure download folder exists
+os.makedirs(download_folder, exist_ok=True)
 
 # Configure Brave
 options = Options()
@@ -20,8 +27,16 @@ options.binary_location = brave_binary_path
 service = Service(driver_path)
 driver = webdriver.Chrome(service=service, options=options)
 
-# Ensure download folder exists
-os.makedirs(download_folder, exist_ok=True)
+def dismiss_overlays():
+    """Dismiss cookie banners or other overlays."""
+    try:
+        cookie_banner = driver.find_element(By.CSS_SELECTOR, "div.cookieinfo")
+        if cookie_banner.is_displayed():
+            driver.execute_script("arguments[0].style.visibility = 'hidden';", cookie_banner)
+            print("Cookie banner dismissed.")
+    except Exception as e:
+        print("No overlays to dismiss:", e)
+
 
 def download_mp3(url, filename):
     """Download an MP3 file from the given URL and decode the filename."""
@@ -39,9 +54,21 @@ def download_mp3(url, filename):
     except Exception as e:
         print(f"Failed to download {decoded_filename}: {e}")
 
+def safe_click(element, retries=3):
+    """Click an element with retry logic."""
+    for attempt in range(retries):
+        try:
+            element.click()
+            return
+        except Exception as e:
+            print(f"Click failed: {e}. Retrying... ({attempt + 1}/{retries})")
+            time.sleep(1)
+    raise Exception("Failed to click the element after multiple attempts.")
+
+
 def download_album(album_url):
     driver.get(album_url)
-    time.sleep(5)  # Allow time for the album page to load
+    time.sleep(3)  # Allow time for the album page to load
     
     # Locate all track links in the table
     track_links = driver.find_elements(By.CSS_SELECTOR, "td.playlistDownloadSong a")
@@ -53,8 +80,13 @@ def download_album(album_url):
             link = track_links[index]
             
             print(f"Processing track {index + 1} of {len(track_links)}...")
-            link.click()  # Open the track page
-            time.sleep(5)  # Allow the track page to load
+            
+            # Dismiss overlays
+            dismiss_overlays()
+            
+            # Click the link safely
+            safe_click(link)
+            time.sleep(4)  # Allow the track page to load
             
             # Locate the download link by finding the parent <a> of the <span> with class "songDownloadLink"
             download_link = driver.find_element(By.CSS_SELECTOR, "a[href] span.songDownloadLink").find_element(By.XPATH, "..")
@@ -66,12 +98,13 @@ def download_album(album_url):
             # Download the MP3 directly
             download_mp3(mp3_url, filename)
             
-            time.sleep(5)  # Wait a bit before processing the next track
+            time.sleep(4)  # Wait a bit before processing the next track
             driver.back()  # Return to the album page
         except Exception as e:
             print(f"Error processing track {index + 1}: {e}")
             driver.back()  # Ensure the script goes back even if an error occurs
             continue
+
 
 
 # Replace with the URL of the album page you want to process
